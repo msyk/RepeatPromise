@@ -12,7 +12,7 @@ function RepeatPromise(repeatTimes, storeId, parentResolve, parentCatch, repeatT
     this._postTask = postTask;
     this._condition = condition;
     this.debug = !!debug;
-    this.debug = true;
+//    this.debug = true;
 }
 
 RepeatPromise.prototype.repeatTask = function (closure) {
