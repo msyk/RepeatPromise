@@ -3,13 +3,12 @@
  */
 
 var urls = [
-    "https://server.msyk.net/index.html",
-    "https://server.msyk.net/10m.txt",
-    "https://server.msyk.net/10m.txt",
-    "https://server.msyk.net/10m.txt",
-    "https://server.msyk.net/10m.txt",
-    "https://server.msyk.net/10m.txt",
-    "https://server.msyk.net/10m.txt"
+    "https://server.msyk.net/kilodata.php?size=1",
+    "https://server.msyk.net/kilodata.php?size=500",
+    "https://server.msyk.net/kilodata.php?size=300",
+    "https://server.msyk.net/kilodata.php?size=1000",
+    "https://server.msyk.net/kilodata.php?size=10000",
+    "https://server.msyk.net/kilodata.php?size=10"
 ];
 
 /* ==============================================================================
@@ -306,22 +305,19 @@ function postTask(counter, storeId, value) {
  * Repeating simple Promise communication task with RepeatPromise class.
  */
 function accessAsync8() {
-    var storeIdMaster = "id";
-    // dataStore[storeIdMaster] = {};
-    //
-    new RepeatPromise(3, storeIdMaster, null, null).repeatTask(
-        function (repeatPromise, counter, resolve1, reject1) {
-            repeatPromise.setData("Level1", counter);
+    new RepeatPromise(3, null, null).repeatTask(
+        function (counter, resolve1, reject1) {
+            RepeatPromise.setData("Level1", counter);
             //
-            new RepeatPromise(5, storeIdMaster, resolve1, reject1).repeatTask(
-                function (repeatPromise, counter, resolve2, reject2) {
-                    repeatPromise.setData("Level2", counter);
+            new RepeatPromise(5, resolve1, reject1).repeatTask(
+                function (counter, resolve2, reject2) {
+                    RepeatPromise.setData("Level2", counter);
                     //
-                    new RepeatPromise(4, storeIdMaster, resolve2, reject2).repeatTask(
-                        function (repeatPromise, counter, resolve, reject) {
+                    new RepeatPromise(4, resolve2, reject2).repeatTask(
+                        function (counter, resolve, reject) {
                             console.log("indices:",
-                                repeatPromise.getData("Level1"),
-                                repeatPromise.getData("Level2"), counter);
+                                RepeatPromise.getData("Level1"),
+                                RepeatPromise.getData("Level2"), counter);
                             resolve(); // or reject();
                         }).repeat();
                 }).repeat();
@@ -331,19 +327,57 @@ function accessAsync8() {
 /* ==============================================================================
  * Repeating asynchronized communication task RepeatPromise class.
  */
+
+// Simple Repeat
 function accessAsync9() {
-    var storeIdMaster = "id";
-    // dataStore[storeIdMaster] = {total: 0};
-    //
-    new RepeatPromise(3, storeIdMaster, null, null).repeatTask(
-        function (repeatPromise, counter, resolve1, reject1) {
-            repeatPromise.setData("Level1", counter);
+    new RepeatPromise(4, null, null)
+        .repeatTask(repeatingTask)
+        .repeat();
+
+}
+
+// Simple Repeat with condition
+function accessAsync10() {
+    new RepeatPromise(4)
+        .repeatTask(repeatingTask)
+        .conditionTask(conditionRepeatTask)
+        .repeat();
+}
+
+// Nesting Repeat
+function accessAsync11() {
+    new RepeatPromise(2).repeatTask(
+        function (counter, resolve1, reject1) {
+            RepeatPromise.setData("Level1", counter);
             //
-            new RepeatPromise(5, storeIdMaster, resolve1, reject1).repeatTask(
-                function (repeatPromise, counter, resolve2, reject2) {
-                    repeatPromise.setData("Level2", counter);
+            new RepeatPromise(3, resolve1, reject1).repeatTask(
+                function (counter, resolve2, reject2) {
+                    RepeatPromise.setData("Level2", counter);
                     //
-                    new RepeatPromise(4, storeIdMaster, resolve2, reject2)
+                    new RepeatPromise(2, null, reject2)
+                        .repeatTask(repeatingTask)
+                        .repeat()
+                        .afterRepeatTask(
+                            function () {
+                                new RepeatPromise(2, resolve2, reject2)
+                                    .repeatTask(repeatingTask)
+                                    .repeat();
+                            }
+                        );
+                }).repeat();
+        }).repeat();
+}
+
+function accessAsync12() {
+    new RepeatPromise(2, null, null).repeatTask(
+        function (counter, resolve1, reject1) {
+            RepeatPromise.setData("Level1", counter);
+            //
+            new RepeatPromise(3, resolve1, reject1).repeatTask(
+                function (counter, resolve2, reject2) {
+                    RepeatPromise.setData("Level2", counter);
+                    //
+                    new RepeatPromise(4, resolve2, reject2)
                         .repeatTask(repeatingTask)
                         .postTask(postRepeatTask)
                         .conditionTask(conditionRepeatTask)
@@ -352,18 +386,18 @@ function accessAsync9() {
         }).repeat();
 }
 
-function repeatingTask(repeatPromise, counter, resolve, reject) {
-    console.log("indices:", repeatPromise.getData("Level1"), repeatPromise.getData("Level2"), counter);
+function repeatingTask(counter, resolve, reject) {
+    console.log("indices:", RepeatPromise.getData("Level1"), RepeatPromise.getData("Level2"), counter);
     try {
-        var index = repeatPromise.getData("Level1") * 3 + repeatPromise.getData("Level2") * 4 + counter;
+        var index = counter;
         var request = new XMLHttpRequest();
         request.open("post", urls[index]);
         request.onreadystatechange = function () {
             if (request.readyState === XMLHttpRequest.DONE) {
                 if (request.status === 200) {
                     console.log("%", urls[index], request.responseText.length);
-                    repeatPromise.setData("total",
-                        repeatPromise.getData("total") + request.responseText.length);
+                    RepeatPromise.setData("total",
+                        RepeatPromise.getData("total") + request.responseText.length);
                     resolve();
                 } else {
                     reject();
@@ -376,12 +410,30 @@ function repeatingTask(repeatPromise, counter, resolve, reject) {
     }
 }
 
-function conditionRepeatTask(repeatPromise, counter, repeatTimes) {
-    return repeatPromise.getData("total") < 60000000;
+function conditionRepeatTask(counter, repeatTimes) {
+    return RepeatPromise.getData("total") < 8000000;
 }
 
-function postRepeatTask(repeatPromise, counter, value) {
+function postRepeatTask(counter, value) {
     console.log("% postRepeatTask", counter);
+}
+
+function accessAsync13() {
+    new ConditionalPromise([
+        {
+            if: function(){},
+            execute: function(){},
+            postTask: function(){}
+        },
+        {
+            if: function(){},
+            execute: function(){},
+            postTask: function(){}
+        },
+        {
+            afterTask: function(){}
+        }
+    ]);
 }
 
 

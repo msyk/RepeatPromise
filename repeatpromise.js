@@ -3,90 +3,126 @@
  * License: MIT License.
  */
 
-function RepeatPromise(repeatTimes, storeId, parentResolve, parentCatch, repeatTask, postTask, condition, debug) {
-    this.repeatTimes = repeatTimes;
-    this.storeId = storeId;
-    this._parentResolve = parentResolve;
-    this._parentCatch = parentCatch;
-    this._repeatTask = repeatTask;
-    this._postTask = postTask;
-    this._condition = condition;
-    this.debug = !!debug;
-//    this.debug = true;
+class RepeatPromise {
+    constructor(repeatTimes, parentResolve, parentCatch, repeatTask, postTask, afterRepeatTask, condition, debug) {
+        this.repeatTimes = repeatTimes;
+        this._parentResolve = parentResolve;
+        this._parentCatch = parentCatch;
+        this._repeatTask = repeatTask;
+        this._postTask = postTask;
+        this._afterRepeatTask = afterRepeatTask;
+        this._condition = condition;
+        this.isFinishRepeat = false;
+        this.debug = !!debug;
+        this.debug = true;
+    }
+
+    repeat() {
+        this.repeatImpl(0);
+        return this;
+    }
+
+    repeatImpl(counter) {
+        // if (this._condition && !this._condition(counter, this.repeatTimes)) {
+        //     this._parentResolve ? this._parentResolve(this) : false;
+        //     return;
+        // }
+        let conditionResult = true;
+        if (this._condition) {
+            conditionResult = this._condition(counter, this.repeatTimes);
+        }
+        if (!(conditionResult && counter < this.repeatTimes)) {
+            this.isFinishRepeat = true;
+            this._afterRepeatTask ? this._afterRepeatTask() : false;
+            this._parentResolve ? this._parentResolve(this) : false;
+            return;
+        }
+        const self = this;
+        new Promise(function (resolve, reject) {
+            if (self.debug) {
+                console.log("Promise start");
+            }
+            self._repeatTask ? self._repeatTask(counter, resolve, reject) : false;
+        }).then(function (value) {
+            if (self.debug) {
+                console.log("Promise then");
+            }
+            self._postTask ? self._postTask(counter, value) : false;
+            counter++;
+            self.repeatImpl(counter);
+        }).catch(function (reason) {
+            if (self.debug) {
+                console.log("Promise catch: " + reason);
+            }
+            self._parentCatch ? self._parentCatch(reason) : false;
+        });
+    }
+
+    repeatTask(closure) {
+        this._repeatTask = closure;
+        return this;
+    }
+
+    postTask(closure) {
+        this._postTask = closure;
+        return this;
+    }
+
+    conditionTask(closure) {
+        this._condition = closure;
+        return this;
+    }
+
+    afterRepeatTask(closure) {
+        this._afterRepeatTask = closure;
+        if (this.isFinishRepeat) {
+            this._afterRepeatTask();
+        }
+        return this;
+    }
+
+    static getData(key) {
+        if (repeatPromiseDataStore[key] !== undefined) {
+            return repeatPromiseDataStore[key];
+        }
+        return null;
+    }
+
+    static setData(key, value) {
+        repeatPromiseDataStore[key] = value;
+    }
+
+    static clearDataStore() {
+        repeatPromiseDataStore = {};
+    }
+
 }
 
-RepeatPromise.prototype.repeatTask = function (closure) {
-    this._repeatTask = closure;
-    return this;
-};
+const repeatPromiseDataStore = {};
 
-RepeatPromise.prototype.postTask = function (closure) {
-    this._postTask = closure;
-    return this;
-};
-
-RepeatPromise.prototype.conditionTask = function (closure) {
-    this._condition = closure;
-    return this;
-};
-
-RepeatPromise.prototype.repeat = function () {
-    this.repeatImpl(0);
-};
-
-RepeatPromise.prototype.repeatImpl = function (counter) {
-    if (this._condition && !this._condition(this, counter, this.repeatTimes)) {
-        this._parentResolve ? this._parentResolve(this) : false;
-        return;
+class ConditionalPromise {
+    constractor(param) {
+        this.param = param;
+        conditionalProcess();
     }
-    var conditionResult = true;
-    if (this._condition) {
-        conditionResult = this._condition(this, counter, this.repeatTimes);
-    }
-    if (!(conditionResult && counter < this.repeatTimes)) {
-        this._parentResolve ? this._parentResolve(this) : false;
-        return;
-    }
-    var self = this;
-    new Promise(function (resolve, reject) {
-        if (self.debug) {
-            console.log("Promise start");
+
+    conditionalProcess() {
+        var i, item;
+        for item of this.param{
+            if (item.if()) {
+                new Promise((resolve, reject) => {
+                    if(item.execute) {
+                        item.execute(resolve, reject);
+                    } else {
+                        resolve();
+                    }
+                }).then((value) => {
+                    item.postTask?item.postTask(value):false;
+                }).catch(() => {
+                    item.catchTask?item.catchTask():false;
+                });
+            }
         }
-        self._repeatTask ? self._repeatTask(self, counter, resolve, reject) : false;
-    }).then(function (value) {
-        if (self.debug) {
-            console.log("Promise then");
-        }
-        self._postTask ? self._postTask(self, counter, value) : false;
-        counter++;
-        self.repeatImpl(counter);
-    }).catch(function (reason) {
-        if (self.debug) {
-            console.log("Promise catch: " + reason);
-        }
-        this._parentCatch ? this._parentCatch(reason) : false;
-    });
-};
-
-RepeatPromise.prototype.setData = function (key, value) {
-    if (!RepeatPromiseDataStore[this.storeId]) {
-        RepeatPromiseDataStore[this.storeId] = {};
     }
-    RepeatPromiseDataStore[this.storeId][key] = value;
-};
 
-RepeatPromise.prototype.getData = function (key) {
-    if (!RepeatPromiseDataStore[this.storeId]) {
-        RepeatPromiseDataStore[this.storeId] = {};
-    }
-    if (RepeatPromiseDataStore[this.storeId][key]) {
-        return RepeatPromiseDataStore[this.storeId][key];
-    }
-    return 0;
-};
-
-RepeatPromise.prototype.clearDataStore = function () {
-    RepeatPromiseDataStore[this.storeId] = {};
-};
-
-var RepeatPromiseDataStore = {};
+}
